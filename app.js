@@ -5,6 +5,8 @@ app.use(express.json());
 
 const PORT = process.env.PORT || 3000;
 const VERIFY_TOKEN = process.env.VERIFY_TOKEN || "opensre_test_token_12345";
+const WHATSAPP_TOKEN = process.env.WHATSAPP_TOKEN;
+const PHONE_NUMBER_ID = process.env.PHONE_NUMBER_ID || "1107090792487620";
 
 // Verification endpoint for Meta/WhatsApp
 app.get("/webhook", (req, res) => {
@@ -19,41 +21,65 @@ app.get("/webhook", (req, res) => {
 
   console.log("[✗] Verification failed: invalid token");
   return res.sendStatus(403);
-});
-
-// Receive incoming WhatsApp messages/events from Meta
-app.post("/webhook", (req, res) => {
+});OpenSRE or Meta
+app.post("/webhook", async (req, res) => {
   const timestamp = new Date().toISOString();
   console.log(`\n[${timestamp}] ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
-  console.log("Incoming WhatsApp webhook from OpenSRE:");
+  console.log("Incoming WhatsApp webhook:");
   console.log(JSON.stringify(req.body, null, 2));
   console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n");
 
-  // Extract message details for logging
-  try {
-    const text = req.body?.text;
-    const phone = req.body?.phone;
-    const type = req.body?.type;
+  // Extract message details
+  const text = req.body?.text;
+  const phone = req.body?.phone;
+  const type = req.body?.type;
 
-    if (text) {
-      console.log(`→ Message text: ${text}`);
-    }
-    if (phone) {
-      console.log(`→ Target phone: ${phone}`);
-    }
-    if (type) {
-      console.log(`→ Type: ${type}`);
-    }
-  } catch (e) {
-    // Ignore parsing errors
+  if (text) {
+    console.log(`→ Message: ${text.substring(0, 100)}...`);
+  }
+  if (phone) {
+    console.log(`→ Target phone: ${phone}`);
+  }
+  if (type) {
+    console.log(`→ Type: ${type}`);
   }
 
-  // Acknowledge receipt immediately
-  res.sendStatus(200);
+  // If from OpenSRE, forward to WhatsApp
+  if (text && phone && WHATSAPP_TOKEN) {
+    try {
+      console.log(`[→] Forwarding to WhatsApp...`);
+      const response = await fetch(
+        `https://graph.facebook.com/v25.0/${PHONE_NUMBER_ID}/messages`,
+        {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${WHATSAPP_TOKEN}`,
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            messaging_product: "whatsapp",
+            to: phone.replace(/\D/g, ""), // Remove non-digits
+            type: "text",
+            text: { body: text }
+          })
+        }
+      );
 
-  // TODO: Here you would:
-  // - Forward to WhatsApp Business API
-  // - Send via Twilio
+      const data = await response.json();
+      
+      if (response.ok) {
+        console.log(`[✓] WhatsApp message sent successfully`);
+        console.log(`    Message ID: ${data?.messages?.[0]?.id}`);
+      } else {
+        console.error(`[✗] WhatsApp API error:`, data?.error?.message);
+      }
+    } catch (err) {
+      console.error(`[✗] Failed to forward to WhatsApp:`, err.message);
+    }
+  }
+
+  // Acknowledge receipt
+  res.sendStatus(200);
   // - Use a webhook proxy service
   // - Log to file/database
   console.log("[✓] Webhook acknowledged\n");
