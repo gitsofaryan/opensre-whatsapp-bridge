@@ -21,7 +21,8 @@ app.get("/webhook", (req, res) => {
 
   console.log("[✗] Verification failed: invalid token");
   return res.sendStatus(403);
-});OpenSRE or Meta
+});
+
 app.post("/webhook", async (req, res) => {
   const timestamp = new Date().toISOString();
   console.log(`\n[${timestamp}] ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
